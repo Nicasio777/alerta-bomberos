@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // El bombero puede crear su perfil y leerlo
+    match /bomberos/{uid} {
+      allow create: if request.auth != null;
+      allow read, update: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Solo admins pueden crear alertas
+    match /alertas/{alertaId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && 
+        get(/databases/$(database)/documents/bomberos/$(request.auth.uid)).data.rol == 'admin';
+    }
+
+    // Guardias: lectura para todos, escritura para admin
+    match /guardias/{document} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        get(/databases/$(database)/documents/bomberos/$(request.auth.uid)).data.rol == 'admin';
+    }
+  }
+}

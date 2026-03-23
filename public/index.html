@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro Alerta Bomberos</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+</head>
+<body>
+    <section class="section">
+        <div class="container">
+            <h1 class="title has-text-centered">🚒 Sistema de Alerta</h1>
+            
+            <form id="registroForm" class="box">
+                <div class="field">
+                    <label class="label">Nombre y Apellido</label>
+                    <input class="input" type="text" id="nombreInput" required>
+                </div>
+
+                <div class="field">
+                    <label class="label">Legajo</label>
+                    <input class="input" type="number" id="legajoInput" required>
+                </div>
+
+                <div class="field">
+                    <label class="label">Cuartel</label>
+                    <input class="input" type="text" id="cuartelInput" required>
+                </div>
+
+                <div class="field">
+                    <label class="label">Estado de Disponibilidad</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select id="estadoInput">
+                                <option value="Activo">🟢 Activo (Alarma General)</option>
+                                <option value="De Guardia">🚒 De Guardia (Todas las alarmas)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label">Tono de Sirena</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select id="sonidoInput">
+                                <option value="police.mp3">Policía</option>
+                                <option value="sirena intermitente.mp3">Alarma Intermitente</option>
+                                <option value="sirena.mp3">Sirena Clásica</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="button is-info is-light is-fullwidth mb-3" onclick="probarSonido()">
+                    🔊 Probar Sonido seleccionado
+                </button>
+
+                <button type="submit" id="btnRegistrar" class="button is-danger is-fullwidth">
+                    REGISTRARME PARA ALERTAS
+                </button>
+            </form>
+        </div>
+    </section> 
+
+    <script>
+        const PUBLIC_VAPID_KEY = 'BOAmma6av8hHbLa4vTv0CINdDcJr0MWU5uKIG4nlqGZDct3emIKrw8jFGagHCPG5GlKFxQN1AUSBEXSLaShQ0a8';
+
+        function probarSonido() {
+            const sonido = document.getElementById('sonidoInput').value;
+            const audio = new Audio('/sounds/' + sonido);
+            audio.play().catch(() => alert("Toca la pantalla para habilitar audio"));
+        }
+
+        const form = document.getElementById('registroForm');
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btnRegistrar');
+            btn.classList.add('is-loading');
+
+            // Capturamos los valores antes de enviarlos
+            const nombre = document.getElementById('nombreInput').value;
+            const legajo = document.getElementById('legajoInput').value;
+            const cuartel = document.getElementById('cuartelInput').value;
+            const sonidoConfigurado = document.getElementById('sonidoInput').value;
+            const estado = document.getElementById('estadoInput').value;
+
+            try {
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') return alert("Debes aceptar las notificaciones");
+
+                const reg = await navigator.serviceWorker.register('/sw.js');
+                await navigator.serviceWorker.ready;
+
+                const subscription = await reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: PUBLIC_VAPID_KEY
+                });
+
+                // Guardado local para persistencia
+                localStorage.setItem('preferencia_sonido', sonidoConfigurado);
+                console.log("Registrando a:", nombre, "con estado:", estado);
+
+                const response = await fetch('/registrar-bombero', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        nombre,
+                        legajo,
+                        cuartel,
+                        sonidoConfigurado,
+                        estado,
+                        token: subscription
+                    })
+                });
+
+                if (response.ok) alert("¡Listo! Ya estás registrado, " + nombre);
+            } catch (error) {
+                console.error(error);
+                alert("Error: " + error.message);
+            } finally {
+                btn.classList.remove('is-loading');
+            }
+        });
+
+        navigator.serviceWorker.addEventListener('message', event => {
+            if (event.data && event.data.type === 'PLAY_ALERTA') {
+                const audio = new Audio('/sounds/' + event.data.file);
+                audio.play();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - Alerta Bomberos</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <style>
+        .boton-emergencia { height: 120px; font-size: 1.5rem !important; font-weight: bold; }
+        .estado-verde { color: #23d160; font-weight: bold; }
+        .estado-rojo { color: #ff3860; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <nav class="navbar is-dark">
+        <div class="navbar-brand">
+            <a class="navbar-item">🚒 COMANDO CENTRAL</a>
+        </div>
+    </nav>
+
+    <section class="section">
+        <div class="container">
+            <div class="columns">
+                <div class="column is-5">
+                    <div class="box">
+                        <h2 class="title is-4">Despacho de Alarmas</h2>
+                        
+                        <div class="field">
+                            <button class="button is-danger is-fullwidth boton-emergencia mb-4" onclick="disparar('general')">
+                                🚨 ALARMA GENERAL <br> (TODOS)
+                            </button>
+                        </div>
+
+                        <div class="field">
+                            <button class="button is-warning is-fullwidth boton-emergencia" onclick="disparar('guardia')">
+                                👨‍🚒 SOLO GUARDIA <br> (TURNO)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="column is-7">
+                    <div class="box">
+                        <div class="level">
+                            <div class="level-left"><h2 class="title is-4">Personal Conectado</h2></div>
+                            <div class="level-right"><button class="button is-small is-light" onclick="cargarBomberos()">🔄 Actualizar</button></div>
+                        </div>
+                        
+                        <table class="table is-fullwidth is-striped">
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Legajo</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="listaBomberos">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        // 1. FUNCIÓN PARA DISPARAR ALARMA
+        async function disparar(tipo) {
+            const mensaje = tipo === 'general' ? "¡CONVOCATORIA GENERAL!" : "¡LLAMADO A LA GUARDIA!";
+            const confirmacion = confirm(`¿Estás seguro de enviar la ${tipo.toUpperCase()}?`);
+            
+            if (!confirmacion) return;
+
+            try {
+                const res = await fetch('/enviar-alerta', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tipo: tipo,
+                        titulo: tipo === 'general' ? "🚨 EMERGENCIA GENERAL" : "🚒 SALIDA DE GUARDIA",
+                        mensaje: mensaje
+                    })
+                });
+                
+                if (res.ok) alert("✅ Alerta enviada con éxito.");
+            } catch (error) {
+                alert("❌ Error al enviar alerta.");
+            }
+        }
+
+        // 2. FUNCIÓN PARA VER QUIÉN ESTÁ ACTIVO O DE GUARDIA
+        async function cargarBomberos() {
+            const lista = document.getElementById('listaBomberos');
+            lista.innerHTML = '<tr><td colspan="3">Cargando...</td></tr>';
+
+            try {
+                const res = await fetch('/obtener-bomberos');
+                const bomberos = await res.json();
+                
+                lista.innerHTML = '';
+                bomberos.forEach(b => {
+                    const claseEstado = b.estado === 'De Guardia' ? 'estado-rojo' : 'estado-verde';
+                    lista.innerHTML += `
+                        <tr>
+                            <td>${b.nombre}</td>
+                            <td>${b.legajo}</td>
+                            <td class="${claseEstado}">${b.estado}</td>
+                        </tr>
+                    `;
+                });
+            } catch (error) {
+                lista.innerHTML = '<tr><td colspan="3">Error al cargar datos</td></tr>';
+            }
+        }
+
+        // Cargar al abrir la página
+        cargarBomberos();
+    </script>
+</body>
+</html>
