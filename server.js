@@ -9,19 +9,17 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// --- 1. CONEXIÓN A FIREBASE ---
-// --- CONEXIÓN A FIREBASE MEJORADA ---
-// --- CONEXIÓN A FIREBASE (VERSIÓN FINAL ANTI-ERRORES) ---
+// --- 1. CONEXIÓN A FIREBASE (VERSIÓN FINAL ANTI-ERRORES) ---
 try {
     let serviceAccount;
 
     if (process.env.FIREBASE_CONFIG_JSON) {
-        // Render: Limpiamos el JSON por si tiene saltos de línea mal pegados
+        // Limpiamos los saltos de línea que a veces se rompen al pegar en Render
         const cleanJson = process.env.FIREBASE_CONFIG_JSON.replace(/\\n/g, '\n');
         serviceAccount = JSON.parse(cleanJson);
         console.log("📡 Cargando credenciales desde Render...");
     } else {
-        // Local: Usamos el archivo
+        // Para cuando probás en tu computadora localmente
         serviceAccount = require('./serviceAccountKey.json');
         console.log("🏠 Cargando credenciales locales...");
     }
@@ -35,9 +33,13 @@ try {
 } catch (error) {
     console.error("❌ ERROR CRÍTICO DE AUTENTICACIÓN:", error.message);
 }
-// --- 2. CONFIGURACIÓN PUSH (Tus llaves actuales) ---
+
+// DEFINIMOS LA BASE DE DATOS (ESTO FALTABA)
+const db = admin.firestore();
+
+// --- 2. CONFIGURACIÓN PUSH ---
 webpush.setVapidDetails(
-    'mailto:nicolas@ejemplo.com',
+    'mailto:nicolasminetti777@gmail.com', // Tu mail real
     'BOAmma6av8hHbLa4vTv0CINdDcJr0MWU5uKIG4nlqGZDct3emIKrw8jFGagHCPG5GlKFxQN1AUSBEXSLaShQ0a8',
     'uN4FBMwcr9CSrClCe5ZiQaTw9qHpYFtqDas3JrKBs1c'
 );
@@ -51,33 +53,32 @@ app.post('/registrar-bombero', async (req, res) => {
             nombre,
             legajo: parseInt(legajo),
             cuartel,
-            token, // Es el objeto de suscripción para las notificaciones
+            token, 
             sonidoConfigurado: sonidoConfigurado || 'sirena1.mp3',
-            estado: estado || 'Activo', // Por defecto entra como Activo
+            estado: estado || 'Activo',
             fechaRegistro: admin.firestore.FieldValue.serverTimestamp()
         };
 
+        // Guardamos en la colección "bomberos"
         await db.collection('bomberos').add(nuevoBombero);
-        console.log(`👨‍🚒 Bombero registrado: ${nombre} (${nuevoBombero.estado})`);
+        console.log(`👨‍🚒 Bombero registrado: ${nombre}`);
         res.status(200).json({ success: true });
     } catch (error) {
-        console.error("Error en registro:", error);
+        console.error("❌ Error en registro:", error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// --- 4. RUTA PARA ENVIAR ALERTA (GENERAL O GUARDIA) ---
+// --- 4. RUTA PARA ENVIAR ALERTA ---
 app.post('/enviar-alerta', async (req, res) => {
     const { tipo, titulo, mensaje } = req.body; 
     
     try {
         let query;
         if (tipo === 'general') {
-            // ALARMA GENERAL: Trae a todos los bomberos de la base
             query = db.collection('bomberos');
             console.log("🚨 DISPARANDO ALARMA GENERAL...");
         } else {
-            // ALARMA DE GUARDIA: Solo a los que están "De Guardia"
             query = db.collection('bomberos').where('estado', '==', 'De Guardia');
             console.log("🚒 DISPARANDO ALARMA DE GUARDIA...");
         }
@@ -93,16 +94,17 @@ app.post('/enviar-alerta', async (req, res) => {
                     mensaje: mensaje,
                     sonido: b.sonidoConfigurado
                 });
-                webpush.sendNotification(b.token, payload).catch(err => console.log("Token inválido"));
+                webpush.sendNotification(b.token, payload).catch(err => console.log("Token inválido para un usuario"));
                 contador++;
             }
         });
 
         res.json({ success: true, enviados: contador });
     } catch (e) {
+        console.error("❌ Error al enviar alerta:", e.message);
         res.status(500).json({ error: e.message });
     }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🚀 Servidor listo en puerto ${PORT}`));
