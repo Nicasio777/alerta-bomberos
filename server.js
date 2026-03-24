@@ -9,17 +9,18 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// --- 1. CONEXIÓN A FIREBASE (VERSIÓN FINAL ANTI-ERRORES) ---
+// --- 1. CONEXIÓN A FIREBASE ---
+let db; 
+
 try {
     let serviceAccount;
 
     if (process.env.FIREBASE_CONFIG_JSON) {
-        // Limpiamos los saltos de línea que a veces se rompen al pegar en Render
+        // Limpiamos errores de pegado en Render
         const cleanJson = process.env.FIREBASE_CONFIG_JSON.replace(/\\n/g, '\n');
         serviceAccount = JSON.parse(cleanJson);
         console.log("📡 Cargando credenciales desde Render...");
     } else {
-        // Para cuando probás en tu computadora localmente
         serviceAccount = require('./serviceAccountKey.json');
         console.log("🏠 Cargando credenciales locales...");
     }
@@ -29,17 +30,17 @@ try {
             credential: admin.credential.cert(serviceAccount)
         });
     }
+    
+    // DEFINIMOS DB AQUÍ ADENTRO
+    db = admin.firestore(); 
     console.log("✅ Conexión exitosa a Firebase: " + serviceAccount.project_id);
 } catch (error) {
     console.error("❌ ERROR CRÍTICO DE AUTENTICACIÓN:", error.message);
 }
 
-// DEFINIMOS LA BASE DE DATOS (ESTO FALTABA)
-const db = admin.firestore();
-
 // --- 2. CONFIGURACIÓN PUSH ---
 webpush.setVapidDetails(
-    'mailto:nicolasminetti777@gmail.com', // Tu mail real
+    'mailto:nicolasminetti777@gmail.com',
     'BOAmma6av8hHbLa4vTv0CINdDcJr0MWU5uKIG4nlqGZDct3emIKrw8jFGagHCPG5GlKFxQN1AUSBEXSLaShQ0a8',
     'uN4FBMwcr9CSrClCe5ZiQaTw9qHpYFtqDas3JrKBs1c'
 );
@@ -47,6 +48,8 @@ webpush.setVapidDetails(
 // --- 3. RUTA PARA REGISTRAR BOMBERO ---
 app.post('/registrar-bombero', async (req, res) => {
     try {
+        if (!db) throw new Error("La base de datos no está conectada");
+
         const { nombre, legajo, cuartel, token, sonidoConfigurado, estado } = req.body;
 
         const nuevoBombero = {
@@ -59,7 +62,6 @@ app.post('/registrar-bombero', async (req, res) => {
             fechaRegistro: admin.firestore.FieldValue.serverTimestamp()
         };
 
-        // Guardamos en la colección "bomberos"
         await db.collection('bomberos').add(nuevoBombero);
         console.log(`👨‍🚒 Bombero registrado: ${nombre}`);
         res.status(200).json({ success: true });
@@ -74,6 +76,8 @@ app.post('/enviar-alerta', async (req, res) => {
     const { tipo, titulo, mensaje } = req.body; 
     
     try {
+        if (!db) throw new Error("La base de datos no está conectada");
+
         let query;
         if (tipo === 'general') {
             query = db.collection('bomberos');
@@ -94,7 +98,7 @@ app.post('/enviar-alerta', async (req, res) => {
                     mensaje: mensaje,
                     sonido: b.sonidoConfigurado
                 });
-                webpush.sendNotification(b.token, payload).catch(err => console.log("Token inválido para un usuario"));
+                webpush.sendNotification(b.token, payload).catch(err => console.log("Token inválido"));
                 contador++;
             }
         });
