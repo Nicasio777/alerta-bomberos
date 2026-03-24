@@ -9,10 +9,10 @@
   },
   "author": "Nicolas Minetti",
   "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "firebase-admin": "^12.0.0",
-    "web-push": "^3.6.7",
-    "dotenv": "^16.4.5",
-    "cors": "^2.8.6"
+    "web-push": "^3.6.7"
   }
 }
