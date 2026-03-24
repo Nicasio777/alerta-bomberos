@@ -10,18 +10,31 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // --- 1. CONEXIÓN A FIREBASE ---
+// --- CONEXIÓN A FIREBASE MEJORADA ---
+// --- CONEXIÓN A FIREBASE (VERSIÓN FINAL ANTI-ERRORES) ---
 try {
-    const serviceAccount = require('./serviceAccountKey.json');
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
-    console.log("✅ Conectado a Firebase: alerta-bomberos-90b60");
+    let serviceAccount;
+
+    if (process.env.FIREBASE_CONFIG_JSON) {
+        // Render: Limpiamos el JSON por si tiene saltos de línea mal pegados
+        const cleanJson = process.env.FIREBASE_CONFIG_JSON.replace(/\\n/g, '\n');
+        serviceAccount = JSON.parse(cleanJson);
+        console.log("📡 Cargando credenciales desde Render...");
+    } else {
+        // Local: Usamos el archivo
+        serviceAccount = require('./serviceAccountKey.json');
+        console.log("🏠 Cargando credenciales locales...");
+    }
+
+    if (!admin.apps.length) {
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+    }
+    console.log("✅ Conexión exitosa a Firebase: " + serviceAccount.project_id);
 } catch (error) {
-    console.error("❌ Error con serviceAccountKey.json:", error.message);
+    console.error("❌ ERROR CRÍTICO DE AUTENTICACIÓN:", error.message);
 }
-
-const db = admin.firestore();
-
 // --- 2. CONFIGURACIÓN PUSH (Tus llaves actuales) ---
 webpush.setVapidDetails(
     'mailto:nicolas@ejemplo.com',
